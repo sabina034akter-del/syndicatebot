@@ -15,10 +15,10 @@ from telegram.ext import (
 )
 
 # ==========================
-# BOT CONFIG
+# CONFIG
 # ==========================
-BOT_TOKEN = "8715479969:AAG5HPiFBSgzySaugO8WQE5jx3Majq928Ds"    # replace with your @BotFather token
-GROUP_ID  = -1001234567890           # replace with your group ID
+BOT_TOKEN = "8715479969:AAG5HPiFBSgzySaugO8WQE5jx3Majq928Ds  # @BotFather token
+GROUP_ID  = -1001234567890         # Telegram group ID
 
 # ==========================
 # LOGGING
@@ -72,7 +72,6 @@ async def open_session(context: ContextTypes.DEFAULT_TYPE):
     done_users          = set()
     current_session_num += 1
 
-    # Defaulter mention
     def_text = ""
     if prev_defaulters:
         mentions = " ".join(prev_defaulters)
@@ -81,11 +80,8 @@ async def open_session(context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=GROUP_ID,
         text=(
-            f"🟢 *SESSION {current_session_num} OPEN!*\n\n"
-            f"📌 এখন তোমার X link drop করো\n"
-            f"⏰ ৩০ মিনিট সময় আছে\n\n"
-            f"▪️ শুধু X/Twitter link দাও\n"
-            f"▪️ Engage শেষে `/done` লিখো"
+            f"🟢 SESSION {current_session_num} OPEN!\n"
+            f"Drop your link, group open! ⏰ ১ মিনিট সময় আছে"
             f"{def_text}"
         ),
         parse_mode="Markdown"
@@ -98,7 +94,6 @@ async def close_session(context: ContextTypes.DEFAULT_TYPE):
         return
     session_active = False
 
-    # নতুন defaulter = link দিয়েছে কিন্তু /done করেনি
     new_def = list(all_participants - done_users)
     prev_defaulters = new_def
 
@@ -107,7 +102,7 @@ async def close_session(context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=GROUP_ID,
         text=(
-            f"🔴 *SESSION {current_session_num} CLOSED*\n\n"
+            f"🔴 SESSION {current_session_num} CLOSED\n\n"
             f"📊 Total posts: *{len(session_posts)}*\n"
             f"✅ Done: *{len(done_users)}*"
             f"{def_text}\n\n"
@@ -130,7 +125,7 @@ async def close_session(context: ContextTypes.DEFAULT_TYPE):
 async def send_reminder(context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=GROUP_ID,
-        text="⏰ *৩০ মিনিট পরে session শুরু হবে!*\n\nReady হও 🚀 আগের engage বাকি থাকলে এখনই করো!",
+        text="⏰ ১ মিনিট পরে session শুরু হবে! Ready হও 🚀 আগের engage বাকি থাকলে এখনই করো!",
         parse_mode="Markdown"
     )
 
@@ -214,41 +209,25 @@ async def manual_close(update: Update, context: ContextTypes.DEFAULT_TYPE): awai
 # ==========================
 # FLASK KEEP-ALIVE
 # ==========================
-app = Flask('')
+flask_app = Flask('')
 
-@app.route('/')
+@flask_app.route('/')
 def home(): return "Bot is alive!"
 
-def run(): app.run(host='0.0.0.0', port=10000)
+def run(): flask_app.run(host='0.0.0.0', port=10000)
 def keep_alive(): Thread(target=run).start()
 
 # ==========================
-# SCHEDULER
+# TRIAL SCHEDULER
 # ==========================
-def setup_jobs(app):
-    jq = app.job_queue
-
-    # 🔥 TRIAL TEST (UTC)
-    jq.run_daily(open_session,  time(4, 30, tzinfo=timezone.utc))
-    jq.run_daily(close_session, time(4, 35, tzinfo=timezone.utc))
-    jq.run_daily(open_session,  time(4, 40, tzinfo=timezone.utc))
-    jq.run_daily(close_session, time(4, 45, tzinfo=timezone.utc))
-
-    # MAIN SCHEDULE
-    jq.run_daily(open_session,  time(6, 0, tzinfo=timezone.utc))
-    jq.run_daily(open_session,  time(11, 0, tzinfo=timezone.utc))
-    jq.run_daily(open_session,  time(15, 0, tzinfo=timezone.utc))
-    jq.run_daily(open_session,  time(18, 30, tzinfo=timezone.utc))
-
-    jq.run_daily(close_session, time(6, 30, tzinfo=timezone.utc))
-    jq.run_daily(close_session, time(11, 30, tzinfo=timezone.utc))
-    jq.run_daily(close_session, time(15, 30, tzinfo=timezone.utc))
-    jq.run_daily(close_session, time(19, 0, tzinfo=timezone.utc))
-
-    jq.run_daily(send_reminder, time(5, 30, tzinfo=timezone.utc))
-    jq.run_daily(send_reminder, time(10, 30, tzinfo=timezone.utc))
-    jq.run_daily(send_reminder, time(14, 30, tzinfo=timezone.utc))
-    jq.run_daily(send_reminder, time(18, 0, tzinfo=timezone.utc))
+def setup_trial_jobs(jq):
+    start_hour = 4  # UTC
+    start_min  = 35 # 10:35 BD
+    for i in range(5):
+        # Open
+        jq.run_daily(open_session,  time(start_hour, (start_min + i*2) % 60, tzinfo=timezone.utc))
+        # Close 1 min later
+        jq.run_daily(close_session, time(start_hour, (start_min + i*2 + 1) % 60, tzinfo=timezone.utc))
 
 # ==========================
 # MAIN
@@ -263,9 +242,10 @@ def main():
     app_.add_handler(CommandHandler("closesession", manual_close))
     app_.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    setup_jobs(app_)
+    # Setup trial
+    setup_trial_jobs(app_.job_queue)
 
-    print("✅ Bot চালু! Ctrl+C দিয়ে বন্ধ করা যাবে")
+    print("✅ Trial Bot চালু! Ctrl+C দিয়ে বন্ধ করা যাবে")
     app_.run_polling()
 
 if __name__ == "__main__":
